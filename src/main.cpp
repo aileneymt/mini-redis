@@ -50,10 +50,16 @@ int main(int argc, char **argv) {
   // You can use print statements as follows for debugging, they'll be visible when running tests.
   std::cout << "Logs from your program will appear here!\n";
 
-  accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
+  // TCP, i get a file descriptor for the client connection
+  int client_fd = accept(server_fd, (struct sockaddr *) &client_addr, (socklen_t *) &client_addr_len);
   std::cout << "Client connected\n";
+  char buffer[512] {};
+  read(client_fd, buffer, sizeof(buffer));
+  const char * response {"+PONG\r\n"};
+  send(client_fd, response, strlen(response), 0);
   
   close(server_fd);
+  close(client_fd);
 
   return 0;
 }
