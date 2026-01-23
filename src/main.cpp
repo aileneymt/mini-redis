@@ -1,3 +1,6 @@
+#include "resp.h"
+#include "commands.h"
+
 #include <iostream>
 #include <cstring>
 #include <unistd.h>
@@ -7,20 +10,34 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 
+#define MAX_BUFFER_SIZE 512
+
+CommandExecutor executor{};
 
 void handleClient(int epoll_fd, int client_fd) {
-  char buffer[512] {};
-
-  if (read(client_fd, buffer, sizeof(buffer)) > 0) {
-    std::cout << "Client connected, reading... \n";
-    const char * response {"+PONG\r\n"};
-    send(client_fd, response, strlen(response), 0);
-  }
-  else {
+  std::vector<u8> buffer(MAX_BUFFER_SIZE);
+  int numBytesRead = read(client_fd, buffer.data(), buffer.size());
+  
+  if (numBytesRead <= 0) {
     epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, NULL);
     close(client_fd);
     std::cout << "Client disconnected\n";
   }
+  
+  buffer.resize(numBytesRead); // prevent parser from trying to handle null elements at end of buffer
+  std::cout << "Client connected, reading... \n";
+
+  RespParser parser(buffer);
+  auto client_input = parser.parse();
+  
+  Resp response;
+  if (!client_input)
+    response = Resp::error("ERR invalid protocol");
+  else
+    response = executor.execute(*client_input);
+
+  std::string res_str {response.encode()};
+  send(client_fd, res_str.c_str(), res_str.length(), 0);
 }
 
 void connectClient(int epoll_fd, int server_fd) {

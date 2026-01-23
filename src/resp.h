@@ -1,3 +1,6 @@
+#ifndef RESP_H
+#define RESP_H
+
 #include <cstdint>
 #include <vector>
 #include <variant>
@@ -5,6 +8,7 @@
 #include <optional>
 
 using u8 = uint8_t;
+using RespVec = std::vector<Resp>;
 
 enum class RespType {
     SimpleString,
@@ -19,7 +23,7 @@ private:
     std::variant<
         std::string,
         int,
-        std::vector<Resp>
+        RespVec
     > value;
         
 public:
@@ -30,12 +34,15 @@ public:
     static Resp error(const std::string& s);
     static Resp integer(const int i);
     static Resp bulkString(const std::string& s);
-    static Resp array(const std::vector<Resp>& arr);
+    static Resp array(const RespVec& arr);
     static Resp nullBulkString();
     
     // Encode to RESP format
     std::string encode() const;
-
+    
+    std::string asString(bool asUpper=false) const;
+    const RespVec& asArray() const;
+    int asInt() const;
 };
 
 class RespParser {
@@ -58,3 +65,5 @@ public:
 
     std::optional<Resp> parse();
 };
+
+#endif

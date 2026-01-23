@@ -26,7 +26,7 @@ Resp Resp::bulkString(const std::string& s) {
     r.type = RespType::BulkString;
     return r;
 }
-Resp Resp::array(const std::vector<Resp>& arr) {
+Resp Resp::array(const RespVec& arr) {
     Resp r;
     r.value = arr;
     r.type = RespType::Array;
@@ -34,6 +34,18 @@ Resp Resp::array(const std::vector<Resp>& arr) {
 }
 
 std::string Resp::encode() const {
+
+}
+
+std::string asString(bool asUpper=false) {
+
+}
+
+const RespVec& asArray() {
+
+}
+
+int asInt() {
 
 }
 
