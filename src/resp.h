@@ -7,6 +7,7 @@
 #include <string>
 #include <optional>
 
+class Resp; // forward declare
 using u8 = uint8_t;
 using RespVec = std::vector<Resp>;
 
@@ -22,7 +23,7 @@ class Resp {
 private:
     std::variant<
         std::string,
-        int,
+        int64_t,
         RespVec
     > value;
         
@@ -30,11 +31,11 @@ public:
     RespType type;
     // Constructs a Resp of a specific type given the data
     // TODO: determine if its better to PBR or PBV here
-    static Resp simpleString(const std::string& s);
-    static Resp error(const std::string& s);
+    static Resp simpleString(std::string s);
+    static Resp error(std::string s);
     static Resp integer(const int i);
-    static Resp bulkString(const std::string& s);
-    static Resp array(const RespVec& arr);
+    static Resp bulkString(std::string s);
+    static Resp array(RespVec arr);
     static Resp nullBulkString();
     
     // Encode to RESP format

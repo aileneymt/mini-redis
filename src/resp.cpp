@@ -2,15 +2,15 @@
 #include <cctype>
 
 /* ----------------------------- Resp FUNCTIONS --------------------------*/
-Resp Resp::simpleString(const std::string& s) {
+Resp Resp::simpleString(std::string s) {
     Resp r;
-    r.value = s;
+    r.value = std::move(s);
     r.type = RespType::SimpleString;
     return r;
 }
-Resp Resp::error(const std::string& s) {
+Resp Resp::error(std::string s) {
     Resp r;
-    r.value = s;
+    r.value = std::move(s);
     r.type = RespType::Error;
     return r;
 }
@@ -20,15 +20,15 @@ Resp Resp::integer(const int i) {
     r.type = RespType::Integer;
     return r;
 }
-Resp Resp::bulkString(const std::string& s) {
+Resp Resp::bulkString(std::string s) {
     Resp r;
-    r.value = s;
+    r.value = std::move(s);
     r.type = RespType::BulkString;
     return r;
 }
-Resp Resp::array(const RespVec& arr) {
+Resp Resp::array(RespVec arr) {
     Resp r;
-    r.value = arr;
+    r.value = std::move(arr);
     r.type = RespType::Array;
     return r;
 }
@@ -89,7 +89,7 @@ std::optional<Resp> RespParser::parseError() {
         err.push_back(data[pos++]);
     }
     if (!expectCRLF()) return std::nullopt;
-    return Resp::error(err);
+    return Resp::error(std::move(err));
 }
 
 std::optional<Resp> RespParser::parseBulkString() {
@@ -107,22 +107,22 @@ std::optional<Resp> RespParser::parseBulkString() {
 
     if (str.length() != *len || !expectCRLF()) return std::nullopt;
 
-    return Resp::bulkString(str);
+    return Resp::bulkString(std::move(str));
 }
 
 std::optional<Resp> RespParser::parseSimpleString() {
-    if (++pos < data.size()) return std::nullopt;
+    if (++pos >= data.size()) return std::nullopt;
     std::string str{};
     while (pos < data.size() && std::isalnum(data[pos])) {
         str.push_back(data[pos++]);
     }
 
     if (!expectCRLF()) return std::nullopt;
-    return Resp::simpleString(str);
+    return Resp::simpleString(std::move(str));
 }
 
 std::optional<Resp> RespParser::parseArray() {
-    if (++pos < data.size()) return std::nullopt;
+    if (++pos >= data.size()) return std::nullopt;
     auto len = readInt(false);
     if (!len || *len < -1) return std::nullopt;
     
@@ -155,7 +155,7 @@ std::optional<Resp> RespParser::parseArray() {
     }
 
     if (*len > -1 && *len != arr.size()) return std::nullopt;
-    return Resp::array(arr);
+    return Resp::array(std::move(arr));
 
 }
 
@@ -165,19 +165,19 @@ std::optional<Resp> RespParser::parse() {
     std::optional<Resp> r;
     switch(data[0]) {
         case '+':
-            r = parseSimpleString();
+            r = std::move(parseSimpleString());
             break;
         case '-':
-            r = parseError();
+            r = std::move(parseError());
             break;
         case ':':
             r = parseInt();
             break;
         case '$':
-            r = parseBulkString();
+            r = std::move(parseBulkString());
             break;
         case '*':
-            r = parseArray();
+            r = std::move(parseArray());
             break;
         default:
             return std::nullopt; // invalid type
