@@ -31,7 +31,7 @@ void handleClient(int epoll_fd, int client_fd) {
   auto client_input = parser.parse();
   
   Resp response;
-  if (!client_input)
+  if (!client_input || !parser.bufferEmpty())
     response = Resp::error("ERR invalid protocol");
   else
     response = executor.execute(*client_input);

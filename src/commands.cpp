@@ -1,11 +1,13 @@
 #include "commands.h"
+#include <algorithm>
+#include <cctype>
 
 CommandExecutor::CommandExecutor() {
     commandMap["ECHO"] = handleEcho;
     commandMap["PING"] = handlePing;
 }
 
-Resp CommandExecutor::execute(const Resp& cmd) const {
+Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
     if (cmd.type != RespType::Array)
         return Resp::error("ERR invalid RESP type, expected non-empty array");
     
@@ -13,7 +15,11 @@ Resp CommandExecutor::execute(const Resp& cmd) const {
     if (bulk_str_arr.empty())
         return Resp::error("ERR invalid RESP type, expected non-empty array");
     
-    std::string cmd_str = bulk_str_arr[0].asString(true);
+    std::string cmd_str = bulk_str_arr[0].asString();
+
+    std::transform(cmd_str.begin(), cmd_str.end(), cmd_str.begin(),
+        [](unsigned char c){ return std::toupper(c); }); // Use a lambda for safety/clarity
+
     auto it = commandMap.find(cmd_str);
     if (it == commandMap.end())
         return Resp::error("ERR invalid command '" + cmd_str + "'");
@@ -21,11 +27,11 @@ Resp CommandExecutor::execute(const Resp& cmd) const {
     return it->second(cmd);
 }
 
-Resp CommandExecutor::handlePing(const Resp& cmd) {
+Resp CommandExecutor::handlePing(const Resp& cmd) noexcept {
     return Resp::simpleString("PONG");
 }
 
-Resp CommandExecutor::handleEcho(const Resp& cmd) {
+Resp CommandExecutor::handleEcho(const Resp& cmd) noexcept {
     const auto& og = cmd.asArray();
     if (og.size() < 2)
         return Resp::error("ERR invalid number of arguments for 'echo'");

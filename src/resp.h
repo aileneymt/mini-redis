@@ -17,6 +17,7 @@ enum class RespType {
     Integer,
     BulkString, // $<length>\r\n<data>\r\n
     Array,
+    Null
 };
 
 class Resp {
@@ -26,6 +27,8 @@ private:
         int64_t,
         RespVec
     > value;
+
+
         
 public:
     RespType type;
@@ -41,7 +44,7 @@ public:
     // Encode to RESP format
     std::string encode() const;
     
-    std::string asString(bool asUpper=false) const;
+    std::string asString() const;
     const RespVec& asArray() const;
     int asInt() const;
 };
@@ -65,6 +68,7 @@ public:
     }
 
     std::optional<Resp> parse();
+    bool bufferEmpty() { return pos == data.size(); }
 };
 
 #endif

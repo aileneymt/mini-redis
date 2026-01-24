@@ -1,5 +1,6 @@
 #include "resp.h"
 #include <cctype>
+#include <stdexcept>
 
 /* ----------------------------- Resp FUNCTIONS --------------------------*/
 Resp Resp::simpleString(std::string s) {
@@ -32,21 +33,54 @@ Resp Resp::array(RespVec arr) {
     r.type = RespType::Array;
     return r;
 }
+Resp Resp::nullBulkString() {
+    Resp r;
+    r.type = RespType::Null;
+    return r;
+}
 
 std::string Resp::encode() const {
-
+    return std::visit([this](auto&& arg) -> std::string {
+        using T = std::decay_t<decltype(arg)>;
+        if constexpr (std::is_same_v<T, std::string>) {
+            if (type == RespType::SimpleString) return "+" + arg + "\r\n";
+            if (type == RespType::Error)        return "-" + arg + "\r\n";
+            if (type == RespType::BulkString)   return "$" + std::to_string(arg.length()) + "\r\n" + arg + "\r\n";
+            else return "$-1\r\n";
+        }
+        else if constexpr (std::is_same_v<T, int64_t>) {
+            return ":" + std::to_string(arg) + "\r\n";
+        }
+        else if constexpr (std::is_same_v<T, RespVec>) {
+            if (type == RespType::Null) return "*-1\r\n";
+            std::string res = "*" + std::to_string(arg.size()) + "\r\n";
+            for (auto& el : arg) {
+                res += el.encode();
+            }
+            return res;
+        }
+        return "";
+    }, value);
 }
 
-std::string asString(bool asUpper=false) {
-
+// Return RESP error, simple string, and bulk string types as a string
+std::string Resp::asString() const {
+    if (type == RespType::Integer || type == RespType::Array) {
+        throw std::runtime_error("Invalid RESP type, expected string");
+    }
+    return std::get<std::string>(value);
 }
 
-const RespVec& asArray() {
-
+const RespVec& Resp::asArray() const {
+    if (type != RespType::Array)
+        throw std::runtime_error("Invalid RESP type, expected array");
+    return std::get<RespVec>(value);
 }
 
-int asInt() {
-
+int Resp::asInt() const {
+    if (type != RespType::Integer)
+        throw std::runtime_error("Invalid RESP type, expected array");
+    return std::get<int64_t>(value);
 }
 
 /* ------------------------- RespParser functions ------------ */
@@ -85,7 +119,7 @@ std::optional<Resp> RespParser::parseError() {
     if (++pos >= data.size()) return std::nullopt;
 
     std::string err{};
-    while (pos < data.size() && std::isalnum(data[pos])) {
+    while (pos < data.size() && data[pos] != '\r') {
         err.push_back(data[pos++]);
     }
     if (!expectCRLF()) return std::nullopt;
@@ -102,8 +136,10 @@ std::optional<Resp> RespParser::parseBulkString() {
 
     // Process the actual string
     std::string str{};
-    while (pos < data.size() && data[pos] != '\r')
+    for (int i{0}; i < *len; ++i) {
+        if (pos >= data.size()) break;
         str.push_back(data[pos++]);
+    }
 
     if (str.length() != *len || !expectCRLF()) return std::nullopt;
 
@@ -113,7 +149,7 @@ std::optional<Resp> RespParser::parseBulkString() {
 std::optional<Resp> RespParser::parseSimpleString() {
     if (++pos >= data.size()) return std::nullopt;
     std::string str{};
-    while (pos < data.size() && std::isalnum(data[pos])) {
+    while (pos < data.size() && data[pos] != '\r') {
         str.push_back(data[pos++]);
     }
 
@@ -127,61 +163,27 @@ std::optional<Resp> RespParser::parseArray() {
     if (!len || *len < -1) return std::nullopt;
     
     std::vector<Resp> arr{};
-    
     for (int i {0}; i < *len; ++i) {
         if (pos >= data.size()) return std::nullopt;
-        std::optional<Resp> r;
-        switch(data[pos]) {
-            case '+':
-                r = parseSimpleString();
-                break;
-            case '-':
-                r = parseError();
-                break;
-            case ':':
-                r = parseInt();
-                break;
-            case '$':
-                r = parseBulkString();
-                break;
-            case '*':
-                r = parseArray();
-                break;
-            default:
-                return std::nullopt; // invalid type
-        }
+        std::optional<Resp> r {parse()};
         if (!r) return std::nullopt;
         arr.push_back(*r);
     }
 
-    if (*len > -1 && *len != arr.size()) return std::nullopt;
+    if (*len != arr.size()) return std::nullopt;
+
     return Resp::array(std::move(arr));
 
 }
 
 std::optional<Resp> RespParser::parse() {
-    if (data.empty()) return std::nullopt;
-
-    std::optional<Resp> r;
-    switch(data[0]) {
-        case '+':
-            r = std::move(parseSimpleString());
-            break;
-        case '-':
-            r = std::move(parseError());
-            break;
-        case ':':
-            r = parseInt();
-            break;
-        case '$':
-            r = std::move(parseBulkString());
-            break;
-        case '*':
-            r = std::move(parseArray());
-            break;
-        default:
-            return std::nullopt; // invalid type
+    if (pos >= data.size()) return std::nullopt;
+    switch (data[pos]) {
+        case '*': return parseArray();
+        case '$': return parseBulkString();
+        case '+': return parseSimpleString();
+        case '-': return parseError();
+        case ':': return parseInt();
+        default:  return std::nullopt;
     }
-    if (pos != data.size()) return std::nullopt;
-    return r;
 }
