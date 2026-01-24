@@ -23,7 +23,6 @@ void handleClient(int epoll_fd, int client_fd) {
     close(client_fd);
     std::cout << "Client disconnected\n";
   }
-  
   buffer.resize(numBytesRead); // prevent parser from trying to handle null elements at end of buffer
   std::cout << "Client connected, reading... \n";
 

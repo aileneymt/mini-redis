@@ -64,7 +64,7 @@ std::string Resp::encode() const {
 }
 
 // Return RESP error, simple string, and bulk string types as a string
-std::string Resp::asString() const {
+const std::string& Resp::asString() const {
     if (type == RespType::Integer || type == RespType::Array) {
         throw std::runtime_error("Invalid RESP type, expected string");
     }
@@ -93,6 +93,7 @@ bool RespParser::expectCRLF() {
 }
 
 std::optional<int> RespParser::readInt(bool posOk) {
+    if (pos >= data.size()) return std::nullopt; 
     bool isNeg = false;
     if (data[pos] == '+' || data[pos] == '-') {
         if (!posOk && data[pos] == '+') return std::nullopt;
@@ -136,7 +137,7 @@ std::optional<Resp> RespParser::parseBulkString() {
 
     // Process the actual string
     std::string str{};
-    for (int i{0}; i < *len; ++i) {
+    for (size_t i{0}; i < *len; ++i) {
         if (pos >= data.size()) break;
         str.push_back(data[pos++]);
     }
@@ -162,8 +163,9 @@ std::optional<Resp> RespParser::parseArray() {
     auto len = readInt(false);
     if (!len || *len < -1) return std::nullopt;
     
-    std::vector<Resp> arr{};
-    for (int i {0}; i < *len; ++i) {
+    RespVec arr;
+    arr.reserve(*len);
+    for (size_t i {0}; i < *len; ++i) {
         if (pos >= data.size()) return std::nullopt;
         std::optional<Resp> r {parse()};
         if (!r) return std::nullopt;

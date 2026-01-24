@@ -44,7 +44,7 @@ public:
     // Encode to RESP format
     std::string encode() const;
     
-    std::string asString() const;
+    const std::string& asString() const;
     const RespVec& asArray() const;
     int asInt() const;
 };

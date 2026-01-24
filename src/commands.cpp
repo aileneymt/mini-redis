@@ -32,15 +32,15 @@ Resp CommandExecutor::handlePing(const Resp& cmd) noexcept {
 }
 
 Resp CommandExecutor::handleEcho(const Resp& cmd) noexcept {
-    const auto& og = cmd.asArray();
-    if (og.size() < 2)
+    const auto& args = cmd.asArray();
+    if (args.size() < 2)
         return Resp::error("ERR invalid number of arguments for 'echo'");
     
-    std::string response;
-    for (int i{1}; i < og.size(); ++i) {
+    std::string response = args[1].asString();
+    for (size_t i{2}; i < args.size(); ++i) {
         try {
-            if (i > 1) response.push_back(' ');
-            response += og[i].asString();
+            response.push_back(' ');
+            response += args[i].asString();
         } catch (...) {
             return Resp::error("ERR invalid argument type");
         }
