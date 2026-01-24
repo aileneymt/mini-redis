@@ -3,8 +3,10 @@
 #include <cctype>
 
 CommandExecutor::CommandExecutor() {
-    commandMap["ECHO"] = handleEcho;
-    commandMap["PING"] = handlePing;
+    commandMap["ECHO"] = [this](const Resp& cmd) { return handleEcho(cmd); };
+    commandMap["PING"] = [this](const Resp& cmd) { return handlePing(cmd); };
+    commandMap["GET"] = [this](const Resp& cmd) { return handleGet(cmd); };
+    commandMap["SET"] = [this](const Resp& cmd) { return handleSet(cmd); };
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -46,4 +48,26 @@ Resp CommandExecutor::handleEcho(const Resp& cmd) noexcept {
         }
     }
     return Resp::bulkString(response);
+}
+
+Resp CommandExecutor::handleGet(const Resp& cmd) noexcept {
+    const RespVec& args = cmd.asArray();
+    if (args.size() < 2)
+        return Resp::error("ERR invalid number of arguments for 'get'");
+    
+    auto it = storage.find(args[1].asString());
+    if (it == storage.end())
+        return Resp::nullBulkString();
+    return Resp::bulkString(it->second);
+}
+
+Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
+    const RespVec& args = cmd.asArray();
+    if (args.size() != 3)
+        return Resp::error("ERR invalid number of arguments for 'get'");
+    
+    const std::string& key = args[1].asString();
+    const std::string& val = args[2].asString();
+    storage[key] = val;
+    return Resp::simpleString("OK");
 }

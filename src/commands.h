@@ -10,15 +10,16 @@
 class CommandExecutor {
 public:
     using CommandFunc = std::function<Resp(const Resp& cmd)>;
-    std::unordered_map<std::string, CommandFunc> commandMap;
-
     CommandExecutor();
     Resp execute(const Resp& cmd) const noexcept;
 private:
-    static Resp handlePing(const Resp& cmd) noexcept;
-    static Resp handleEcho(const Resp& cmd) noexcept;
+    std::unordered_map<std::string, CommandFunc> commandMap;
+    std::unordered_map<std::string, std::string> storage;
+    
+    Resp handlePing(const Resp& cmd) noexcept;
+    Resp handleEcho(const Resp& cmd) noexcept;
+    Resp handleGet(const Resp& cmd) noexcept;
+    Resp handleSet(const Resp& cmd) noexcept;
 };
-
-
 
 #endif 
