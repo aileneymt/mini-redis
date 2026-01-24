@@ -54,20 +54,48 @@ Resp CommandExecutor::handleGet(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 2)
         return Resp::error("ERR invalid number of arguments for 'get'");
-    
+
     auto it = storage.find(args[1].asString());
     if (it == storage.end())
         return Resp::nullBulkString();
-    return Resp::bulkString(it->second);
+    
+    if (it->second.expiry.has_value() &&
+        std::chrono::steady_clock::now() > *it->second.expiry) {
+        storage.erase(it); 
+        return Resp::nullBulkString();
+    }
+
+    return Resp::bulkString(it->second.val);
 }
 
 Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
-    if (args.size() != 3)
+    if (args.size() < 3)
         return Resp::error("ERR invalid number of arguments for 'get'");
     
     const std::string& key = args[1].asString();
     const std::string& val = args[2].asString();
-    storage[key] = val;
+    
+    StorageEntry entry{val};
+    
+    for (size_t i = 3; i < args.size(); i += 2) {
+        std::string option = args[i].asString();
+        std::transform(option.begin(), option.end(), option.begin(), ::toupper);
+        if (i + 1 >= args.size()) return Resp::error("ERR syntax error");
+
+        int time = std::stoi(args[i + 1].asString());
+        if (option == "EX") {
+            entry.expiry = std::chrono::steady_clock::now() + 
+                          std::chrono::seconds(time);
+        }
+        else if (option == "PX") {
+            entry.expiry = std::chrono::steady_clock::now() + 
+                          std::chrono::milliseconds(time);
+        }
+        else {
+            return Resp::error("ERR unimplemented");
+        }
+    }
+    storage[key] = entry;
     return Resp::simpleString("OK");
 }

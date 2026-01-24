@@ -6,6 +6,13 @@
 #include <string>
 #include <unordered_map>
 #include <functional>
+#include <chrono>
+#include <optional>
+
+struct StorageEntry {
+    std::string val;
+    std::optional<std::chrono::time_point<std::chrono::steady_clock>> expiry;
+};
 
 class CommandExecutor {
 public:
@@ -14,7 +21,7 @@ public:
     Resp execute(const Resp& cmd) const noexcept;
 private:
     std::unordered_map<std::string, CommandFunc> commandMap;
-    std::unordered_map<std::string, std::string> storage;
+    std::unordered_map<std::string, StorageEntry> storage;
     
     Resp handlePing(const Resp& cmd) noexcept;
     Resp handleEcho(const Resp& cmd) noexcept;
