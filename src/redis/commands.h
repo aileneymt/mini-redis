@@ -22,6 +22,7 @@ private:
     Resp handleGet(const Resp& cmd) noexcept;
     Resp handleSet(const Resp& cmd) noexcept;
     Resp handleRpush(const Resp& cmd) noexcept;
+    Resp handleLrange(const Resp& cmd) noexcept;
 
 };
 

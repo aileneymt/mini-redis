@@ -1,6 +1,7 @@
 #include "commands.h"
 
 #include <stdexcept>
+#include <algorithm>
 
 CommandExecutor::CommandExecutor() {
     commandMap["ECHO"] = [this](const Resp& cmd) { return handleEcho(cmd); };
@@ -119,9 +120,36 @@ Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
     else if (!it->second.isList()) {
         return Resp::error("ERR " + list_key + " is not a list");
     }
-    else {
-        auto& list = it->second.asArray();
-        list.push_back(list_val);
-        return Resp::integer(list.size());
+    auto& list = it->second.asArray();
+    list.push_back(list_val);
+    return Resp::integer(list.size());
+}
+
+Resp CommandExecutor::handleLrange(const Resp& cmd) noexcept {
+    const RespVec& args = cmd.asArray();
+    if (args.size() != 3) return Resp::error("ERR invalid number of arguments for LRANGE, expected 2 indices");
+    const std::string& list_key = args[1].asString();
+    const int start_idx = args[2].asInt();
+    int end_idx = args[3].asInt();
+
+    auto it = storage.find(list_key);
+    if (it == storage.end()) { // list doesn't exist
+        return Resp::array({});
     }
+    else if (!it->second.isList()){
+        return Resp::error("ERR " + list_key + " is not a list");
+    }
+    
+    auto& list = it->second.asArray(); // std::vector<std::string>
+    if (start_idx >= list.size() || start_idx > end_idx) {
+        return Resp::array({});
+    }
+    end_idx = std::min(end_idx + 1, static_cast<int>(list.size()));
+
+    std::vector<Resp> splice(end_idx - start_idx);
+    for (int i{start_idx}; i < end_idx; ++i) {
+        splice[i - start_idx] = Resp::bulkString(list[i]);
+    }
+    return Resp::array(splice);
+    
 }
