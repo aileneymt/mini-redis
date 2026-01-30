@@ -138,8 +138,8 @@ Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
    
     const std::string& list_key = args[1].asString();
     
-    auto start_idx_opt = parseIndex(args[2]);
-    auto end_idx_opt = parseIndex(args[3]);
+    auto start_idx_opt = parse_int(args[2]);
+    auto end_idx_opt = parse_int(args[3]);
     
     if (!start_idx_opt || !end_idx_opt) return Resp::error("ERR start and end indices must be integers");
     int start_idx = *start_idx_opt;
@@ -175,22 +175,34 @@ Resp CommandExecutor::handle_llen(const Resp& cmd) noexcept {
 
 Resp CommandExecutor::handle_lpop(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
-    if (args.size() != 2) return Resp::error("ERR invalid number of arguments for LPOP");
+    if (args.size() < 2 || args.size() > 3) return Resp::error("ERR invalid number of arguments for LPOP");
     
     const std::string& list_key = args[1].asString();
+    int count = 1;
+    if (args.size() == 3) {
+        std::optional<int> count_opt = parse_int(args[2]);
+        if (!count_opt.has_value()) return Resp::error("ERR expected valid integer for the number of elements to remove");
+        count = *count_opt;
+    }
+
     auto it = storage.find(list_key);
     if (it == storage.end()) return Resp::nullBulkString();
     if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
-
+    
     auto& list = it->second.asList();
     if (list.empty()) return Resp::nullBulkString();
-    auto popped = std::move(list[0]);
-    list.pop_front();
-    
-    return Resp::bulkString(popped);
+    RespVec popped;
+    popped.reserve(count);
+    while (!list.empty() && count) {
+        popped.emplace_back(Resp::bulkString(std::move(list[0])));
+        list.pop_front();
+        --count;
+    }
+    if (popped.size() == 1) return std::move(popped[0]);
+    return Resp::array(popped);
 }
 
-std::optional<int> CommandExecutor::parseIndex(const Resp& arg) noexcept {
+std::optional<int> CommandExecutor::parse_int(const Resp& arg) noexcept {
     try {
         int i = std::stoi(arg.asString());
         return i;
