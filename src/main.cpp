@@ -1,5 +1,5 @@
-#include "resp.h"
-#include "commands.h"
+#include "resp/resp.h"
+#include "redis/commands.h"
 
 #include <iostream>
 #include <cstring>

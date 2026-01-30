@@ -1,6 +1,5 @@
 #include "commands.h"
-#include <algorithm>
-#include <cctype>
+
 #include <stdexcept>
 
 CommandExecutor::CommandExecutor() {

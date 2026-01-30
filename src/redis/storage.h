@@ -1,14 +1,12 @@
-#ifndef COMMANDS_H
-#define COMMANDS_H
+#ifndef STORAGE_H
+#define STORAGE_H
 
-#include "resp.h"
-
-#include <string>
-#include <unordered_map>
-#include <functional>
+#include <stdexcept>
 #include <chrono>
 #include <optional>
 #include <variant>
+#include <vector> 
+#include <string>
 
 struct StorageEntry {
     std::variant<std::string, std::vector<std::string>> value;
@@ -31,21 +29,4 @@ struct StorageEntry {
     }
 };
 
-class CommandExecutor {
-public:
-    using CommandFunc = std::function<Resp(const Resp& cmd)>;
-    CommandExecutor();
-    Resp execute(const Resp& cmd) const noexcept;
-private:
-    std::unordered_map<std::string, CommandFunc> commandMap;
-    std::unordered_map<std::string, StorageEntry> storage;
-    
-    Resp handlePing(const Resp& cmd) noexcept;
-    Resp handleEcho(const Resp& cmd) noexcept;
-    Resp handleGet(const Resp& cmd) noexcept;
-    Resp handleSet(const Resp& cmd) noexcept;
-    Resp handleRpush(const Resp& cmd) noexcept;
-
-};
-
-#endif 
+#endif

@@ -1,11 +1,11 @@
 #ifndef RESP_H
 #define RESP_H
 
-#include <cstdint>
 #include <vector>
 #include <variant>
 #include <string>
 #include <optional>
+#include <cstdint>
 
 class Resp; // forward declare
 using u8 = uint8_t;
@@ -28,8 +28,6 @@ private:
         RespVec
     > value;
 
-
-        
 public:
     RespType type;
     // Constructs a Resp of a specific type given the data
