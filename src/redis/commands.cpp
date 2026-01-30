@@ -109,19 +109,23 @@ Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 2) return Resp::error("ERR invalid number of arguments for RPUSH");
     const std::string& list_key = args[1].asString();
-    const std::string& list_val = args[2].asString();
+    // const std::string& list_val = args[2].asString();
     
     auto it = storage.find(list_key);
     if (it == storage.end()) {
-        storage[list_key] = {std::vector<std::string>{list_val}};
-        return Resp::integer(1);
+        std::vector<std::string> list_vals;
+        for (size_t i {2}; i < args.size(); ++i)
+            list_vals.push_back(args[i].asString());
+        storage[list_key] = {list_vals};
+        return Resp::integer(list_vals.size());
     }
     else if (!it->second.isList()) {
-        return Resp::error("ERR " + list_key + " is not a list");
+        return Resp::error("ERR " + list_key + " exists and is not a list");
     }
     else {
-        auto& list = it->second.asArray();
-        list.push_back(list_val);
-        return Resp::integer(list.size());
+        auto& list_vals = it->second.asArray();
+        for (size_t i {2}; i < args.size(); ++i)
+            list_vals.push_back(args[i].asString());
+        return Resp::integer(list_vals.size());
     }
 }
