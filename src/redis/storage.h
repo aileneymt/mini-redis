@@ -27,6 +27,11 @@ struct StorageEntry {
         if (!isString()) throw std::runtime_error("value type is not std::string");
         return std::get<std::string>(value);
     }
+
+    std::vector<std::string>& asArray() {
+        if (!isList()) throw std::runtime_error("value type is not std::vector");
+        return std::get<std::vector<std::string>>(value);
+    }
 };
 
 #endif

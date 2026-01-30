@@ -120,8 +120,8 @@ Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
         return Resp::error("ERR " + list_key + " is not a list");
     }
     else {
-        return Resp::error("ERR not yet implemented");
+        auto& list = it->second.asArray();
+        list.push_back(list_val);
+        return Resp::integer(list.size());
     }
-
-
 }
