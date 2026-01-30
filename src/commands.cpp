@@ -1,12 +1,15 @@
 #include "commands.h"
 #include <algorithm>
 #include <cctype>
+#include <stdexcept>
 
 CommandExecutor::CommandExecutor() {
     commandMap["ECHO"] = [this](const Resp& cmd) { return handleEcho(cmd); };
     commandMap["PING"] = [this](const Resp& cmd) { return handlePing(cmd); };
     commandMap["GET"] = [this](const Resp& cmd) { return handleGet(cmd); };
     commandMap["SET"] = [this](const Resp& cmd) { return handleSet(cmd); };
+    commandMap["RPUSH"] = [this](const Resp& cmd) { return handleRpush(cmd); };
+
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -59,13 +62,12 @@ Resp CommandExecutor::handleGet(const Resp& cmd) noexcept {
     if (it == storage.end())
         return Resp::nullBulkString();
     
-    if (it->second.expiry.has_value() &&
-        std::chrono::steady_clock::now() > *it->second.expiry) {
+    if (it->second.isExpired()) {
         storage.erase(it); 
         return Resp::nullBulkString();
     }
 
-    return Resp::bulkString(it->second.val);
+    return Resp::bulkString(it->second.asString());
 }
 
 Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
@@ -76,7 +78,7 @@ Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
     const std::string& key = args[1].asString();
     const std::string& val = args[2].asString();
     
-    StorageEntry entry{val};
+    StorageEntry entry {val};
     
     for (size_t i = 3; i < args.size(); i += 2) {
         std::string option = args[i].asString();
@@ -98,4 +100,29 @@ Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
     }
     storage[key] = entry;
     return Resp::simpleString("OK");
+}
+
+Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
+    // append elements to a list
+    // if the list doesn't exist, it is created
+    // returns a RESP integer w number of elements in list after appending
+
+    const RespVec& args = cmd.asArray();
+    if (args.size() < 2) return Resp::error("ERR invalid number of arguments for RPUSH");
+    const std::string& list_key = args[1].asString();
+    const std::string& list_val = args[2].asString();
+    
+    auto it = storage.find(list_key);
+    if (it == storage.end()) {
+        storage[list_key] = {std::vector<std::string>{list_val}};
+        return Resp::integer(1);
+    }
+    else if (!it->second.isList()) {
+        return Resp::error("ERR " + list_key + " is not a list");
+    }
+    else {
+        return Resp::error("ERR not yet implemented");
+    }
+
+
 }
