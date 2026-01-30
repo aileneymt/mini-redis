@@ -21,11 +21,13 @@ private:
     Resp handleEcho(const Resp& cmd) noexcept;
     Resp handleGet(const Resp& cmd) noexcept;
     Resp handleSet(const Resp& cmd) noexcept;
-    Resp handleRpush(const Resp& cmd) noexcept;
+    Resp handlePush(const Resp& cmd, const bool rPush=true) noexcept;
+    Resp handleLpush(const Resp& cmd) noexcept;
     Resp handleLrange(const Resp& cmd) noexcept;
 
     static std::optional<int> parseIndex(const Resp& arg) noexcept;
     static int normalize_index(int i, const int size) noexcept;
+    static void push_string(StringList& list, std::string str, const bool rPush);
 };
 
 #endif 

@@ -5,18 +5,20 @@
 #include <chrono>
 #include <optional>
 #include <variant>
-#include <vector> 
+#include <deque> 
 #include <string>
 
+using StringList = std::deque<std::string>;
+
 struct StorageEntry {
-    std::variant<std::string, std::vector<std::string>> value;
+    std::variant<std::string, StringList> value;
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> expiry;
 
     bool isString() {
         return std::holds_alternative<std::string>(value);
     }
     bool isList() {
-        return std::holds_alternative<std::vector<std::string>>(value);
+        return std::holds_alternative<StringList>(value);
     }
 
     bool isExpired() {
@@ -28,9 +30,9 @@ struct StorageEntry {
         return std::get<std::string>(value);
     }
 
-    std::vector<std::string>& asArray() {
+    StringList& asArray() {
         if (!isList()) throw std::runtime_error("value type is not std::vector");
-        return std::get<std::vector<std::string>>(value);
+        return std::get<StringList>(value);
     }
 };
 

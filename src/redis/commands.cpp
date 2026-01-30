@@ -10,8 +10,10 @@ CommandExecutor::CommandExecutor() {
     commandMap["PING"] = [this](const Resp& cmd) { return handlePing(cmd); };
     commandMap["GET"] = [this](const Resp& cmd) { return handleGet(cmd); };
     commandMap["SET"] = [this](const Resp& cmd) { return handleSet(cmd); };
-    commandMap["RPUSH"] = [this](const Resp& cmd) { return handleRpush(cmd); };
+    commandMap["RPUSH"] = [this](const Resp& cmd) { return handlePush(cmd); };
+    commandMap["LPUSH"] = [this](const Resp& cmd) { return handlePush(cmd, false); };
     commandMap["LRANGE"] = [this](const Resp& cmd) { return handleLrange(cmd); };
+
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -104,21 +106,16 @@ Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
     return Resp::simpleString("OK");
 }
 
-Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
-    // append elements to a list
-    // if the list doesn't exist, it is created
-    // returns a RESP integer w number of elements in list after appending
-
+Resp CommandExecutor::handlePush(const Resp& cmd, const bool rPush) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 2) return Resp::error("ERR invalid number of arguments for RPUSH");
     const std::string& list_key = args[1].asString();
-    // const std::string& list_val = args[2].asString();
     
     auto it = storage.find(list_key);
     if (it == storage.end()) {
-        std::vector<std::string> list_vals;
+        StringList list_vals;
         for (size_t i {2}; i < args.size(); ++i)
-            list_vals.push_back(args[i].asString());
+            push_string(list_vals, args[i].asString(), rPush);
         storage[list_key] = {list_vals};
         return Resp::integer(list_vals.size());
     }
@@ -128,7 +125,7 @@ Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
     
     auto& list_vals = it->second.asArray();
     for (size_t i {2}; i < args.size(); ++i)
-        list_vals.push_back(args[i].asString());
+        push_string(list_vals, args[i].asString(), rPush);
     return Resp::integer(list_vals.size());
 }
 
@@ -182,3 +179,11 @@ int CommandExecutor::normalize_index(int i, const int size) noexcept {
     return std::clamp(i, 0, size);
 }
 
+
+void CommandExecutor::push_string(StringList& list, std::string str, const bool rPush) {
+    if (rPush)
+        list.push_back(std::move(str));
+    else
+        list.push_front(std::move(str));
+    
+}
