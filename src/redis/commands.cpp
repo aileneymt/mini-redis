@@ -6,14 +6,14 @@
 #include <iostream>
 
 CommandExecutor::CommandExecutor() {
-    commandMap["ECHO"] = [this](const Resp& cmd) { return handleEcho(cmd); };
-    commandMap["PING"] = [this](const Resp& cmd) { return handlePing(cmd); };
-    commandMap["GET"] = [this](const Resp& cmd) { return handleGet(cmd); };
-    commandMap["SET"] = [this](const Resp& cmd) { return handleSet(cmd); };
-    commandMap["RPUSH"] = [this](const Resp& cmd) { return handlePush(cmd); };
-    commandMap["LPUSH"] = [this](const Resp& cmd) { return handlePush(cmd, false); };
-    commandMap["LRANGE"] = [this](const Resp& cmd) { return handleLrange(cmd); };
-
+    commandMap["ECHO"] = [this](const Resp& cmd) { return handle_echo(cmd); };
+    commandMap["PING"] = [this](const Resp& cmd) { return handle_ping(cmd); };
+    commandMap["GET"] = [this](const Resp& cmd) { return handle_get(cmd); };
+    commandMap["SET"] = [this](const Resp& cmd) { return handle_set(cmd); };
+    commandMap["RPUSH"] = [this](const Resp& cmd) { return handle_push(cmd); };
+    commandMap["LPUSH"] = [this](const Resp& cmd) { return handle_push(cmd, false); };
+    commandMap["LRANGE"] = [this](const Resp& cmd) { return handle_lrange(cmd); };
+    commandMap["LLEN"] = [this](const Resp& cmd) { return handle_llen(cmd); };
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -36,11 +36,11 @@ Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
     return it->second(cmd);
 }
 
-Resp CommandExecutor::handlePing(const Resp& cmd) noexcept {
+Resp CommandExecutor::handle_ping(const Resp& cmd) noexcept {
     return Resp::simpleString("PONG");
 }
 
-Resp CommandExecutor::handleEcho(const Resp& cmd) noexcept {
+Resp CommandExecutor::handle_echo(const Resp& cmd) noexcept {
     const auto& args = cmd.asArray();
     if (args.size() < 2)
         return Resp::error("ERR invalid number of arguments for 'echo'");
@@ -57,7 +57,7 @@ Resp CommandExecutor::handleEcho(const Resp& cmd) noexcept {
     return Resp::bulkString(response);
 }
 
-Resp CommandExecutor::handleGet(const Resp& cmd) noexcept {
+Resp CommandExecutor::handle_get(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 2)
         return Resp::error("ERR invalid number of arguments for 'get'");
@@ -74,7 +74,7 @@ Resp CommandExecutor::handleGet(const Resp& cmd) noexcept {
     return Resp::bulkString(it->second.asString());
 }
 
-Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
+Resp CommandExecutor::handle_set(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 3)
         return Resp::error("ERR invalid number of arguments for 'get'");
@@ -106,7 +106,7 @@ Resp CommandExecutor::handleSet(const Resp& cmd) noexcept {
     return Resp::simpleString("OK");
 }
 
-Resp CommandExecutor::handlePush(const Resp& cmd, const bool rPush) noexcept {
+Resp CommandExecutor::handle_push(const Resp& cmd, const bool rPush) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 2) return Resp::error("ERR invalid number of arguments for RPUSH");
     const std::string& list_key = args[1].asString();
@@ -129,7 +129,7 @@ Resp CommandExecutor::handlePush(const Resp& cmd, const bool rPush) noexcept {
     return Resp::integer(list_vals.size());
 }
 
-Resp CommandExecutor::handleLrange(const Resp& cmd) noexcept {
+Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() != 4) return Resp::error("ERR invalid number of arguments for LRANGE, expected 2 indices");
    
@@ -158,6 +158,19 @@ Resp CommandExecutor::handleLrange(const Resp& cmd) noexcept {
     return Resp::array(splice);
     
 }
+
+Resp CommandExecutor::handle_llen(const Resp& cmd) noexcept {
+    const RespVec& args = cmd.asArray();
+    if (args.size() != 2) return Resp::error("ERR invalid number of arguments for LLEN");
+    const std::string& list_key = args[1].asString();
+    
+    auto it = storage.find(list_key);
+    if (it == storage.end()) return Resp::integer(0);
+    if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
+    return Resp::integer(it->second.asArray().size());
+}
+
+
 
 std::optional<int> CommandExecutor::parseIndex(const Resp& arg) noexcept {
     try {

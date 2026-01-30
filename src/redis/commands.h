@@ -17,13 +17,14 @@ private:
     std::unordered_map<std::string, CommandFunc> commandMap;
     std::unordered_map<std::string, StorageEntry> storage;
     
-    Resp handlePing(const Resp& cmd) noexcept;
-    Resp handleEcho(const Resp& cmd) noexcept;
-    Resp handleGet(const Resp& cmd) noexcept;
-    Resp handleSet(const Resp& cmd) noexcept;
-    Resp handlePush(const Resp& cmd, const bool rPush=true) noexcept;
-    Resp handleLpush(const Resp& cmd) noexcept;
-    Resp handleLrange(const Resp& cmd) noexcept;
+    Resp handle_ping(const Resp& cmd) noexcept;
+    Resp handle_echo(const Resp& cmd) noexcept;
+    Resp handle_get(const Resp& cmd) noexcept;
+    Resp handle_set(const Resp& cmd) noexcept;
+    Resp handle_push(const Resp& cmd, const bool rPush=true) noexcept;
+    Resp handle_lrange(const Resp& cmd) noexcept;
+    Resp handle_llen(const Resp& cmd) noexcept;
+    
 
     static std::optional<int> parseIndex(const Resp& arg) noexcept;
     static int normalize_index(int i, const int size) noexcept;
