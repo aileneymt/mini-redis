@@ -14,6 +14,9 @@ CommandExecutor::CommandExecutor() {
     commandMap["LPUSH"] = [this](const Resp& cmd) { return handle_push(cmd, false); };
     commandMap["LRANGE"] = [this](const Resp& cmd) { return handle_lrange(cmd); };
     commandMap["LLEN"] = [this](const Resp& cmd) { return handle_llen(cmd); };
+    commandMap["LPOP"] = [this](const Resp& cmd) { return handle_lpop(cmd); };
+
+
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -123,7 +126,7 @@ Resp CommandExecutor::handle_push(const Resp& cmd, const bool rPush) noexcept {
         return Resp::error("ERR " + list_key + " exists and is not a list");
     }
     
-    auto& list_vals = it->second.asArray();
+    auto& list_vals = it->second.asList();
     for (size_t i {2}; i < args.size(); ++i)
         push_string(list_vals, args[i].asString(), rPush);
     return Resp::integer(list_vals.size());
@@ -146,7 +149,7 @@ Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
     if (it == storage.end()) return Resp::array({});
     if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
     
-    auto& list = it->second.asArray(); // std::vector<std::string>
+    auto& list = it->second.asList(); // std::vector<std::string>
     int size = list.size();
     start_idx = normalize_index(start_idx, size);
     end_idx = std::min(normalize_index(end_idx, size) + 1, size);
@@ -167,10 +170,25 @@ Resp CommandExecutor::handle_llen(const Resp& cmd) noexcept {
     auto it = storage.find(list_key);
     if (it == storage.end()) return Resp::integer(0);
     if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
-    return Resp::integer(it->second.asArray().size());
+    return Resp::integer(it->second.asList().size());
 }
 
+Resp CommandExecutor::handle_lpop(const Resp& cmd) noexcept {
+    const RespVec& args = cmd.asArray();
+    if (args.size() != 2) return Resp::error("ERR invalid number of arguments for LPOP");
+    
+    const std::string& list_key = args[1].asString();
+    auto it = storage.find(list_key);
+    if (it == storage.end()) return Resp::nullBulkString();
+    if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
 
+    auto& list = it->second.asList();
+    if (list.empty()) return Resp::nullBulkString();
+    auto popped = std::move(list[0]);
+    list.pop_front();
+    
+    return Resp::bulkString(popped);
+}
 
 std::optional<int> CommandExecutor::parseIndex(const Resp& arg) noexcept {
     try {

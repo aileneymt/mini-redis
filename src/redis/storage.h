@@ -30,7 +30,7 @@ struct StorageEntry {
         return std::get<std::string>(value);
     }
 
-    StringList& asArray() {
+    StringList& asList() {
         if (!isList()) throw std::runtime_error("value type is not std::vector");
         return std::get<StringList>(value);
     }

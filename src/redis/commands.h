@@ -24,6 +24,7 @@ private:
     Resp handle_push(const Resp& cmd, const bool rPush=true) noexcept;
     Resp handle_lrange(const Resp& cmd) noexcept;
     Resp handle_llen(const Resp& cmd) noexcept;
+    Resp handle_lpop(const Resp& cmd) noexcept;
     
 
     static std::optional<int> parseIndex(const Resp& arg) noexcept;
