@@ -3,13 +3,15 @@
 #include <stdexcept>
 #include <algorithm>
 
+#include <iostream>
+
 CommandExecutor::CommandExecutor() {
     commandMap["ECHO"] = [this](const Resp& cmd) { return handleEcho(cmd); };
     commandMap["PING"] = [this](const Resp& cmd) { return handlePing(cmd); };
     commandMap["GET"] = [this](const Resp& cmd) { return handleGet(cmd); };
     commandMap["SET"] = [this](const Resp& cmd) { return handleSet(cmd); };
     commandMap["RPUSH"] = [this](const Resp& cmd) { return handleRpush(cmd); };
-
+    commandMap["LRANGE"] = [this](const Resp& cmd) { return handleLrange(cmd); };
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -123,7 +125,7 @@ Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
     else if (!it->second.isList()) {
         return Resp::error("ERR " + list_key + " exists and is not a list");
     }
-    else {
+    
     auto& list_vals = it->second.asArray();
     for (size_t i {2}; i < args.size(); ++i)
         list_vals.push_back(args[i].asString());
@@ -132,28 +134,31 @@ Resp CommandExecutor::handleRpush(const Resp& cmd) noexcept {
 
 Resp CommandExecutor::handleLrange(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
-    if (args.size() != 3) return Resp::error("ERR invalid number of arguments for LRANGE, expected 2 indices");
+    if (args.size() != 4) return Resp::error("ERR invalid number of arguments for LRANGE, expected 2 indices");
+   
     const std::string& list_key = args[1].asString();
-    const int start_idx = args[2].asInt();
-    int end_idx = args[3].asInt();
+    
+    int start_idx;
+    int end_idx;
+    try {
+        start_idx = std::stoi(args[2].asString());
+        end_idx = std::stoi(args[3].asString());
+    } catch (...) {
+        return Resp::error("ERR unable to parse index arguments as ints");
+    }
 
     auto it = storage.find(list_key);
-    if (it == storage.end()) { // list doesn't exist
-        return Resp::array({});
-    }
-    else if (!it->second.isList()){
-        return Resp::error("ERR " + list_key + " is not a list");
-    }
+    if (it == storage.end()) return Resp::array({});
+    if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
     
     auto& list = it->second.asArray(); // std::vector<std::string>
-    if (start_idx >= list.size() || start_idx > end_idx) {
-        return Resp::array({});
-    }
-    end_idx = std::min(end_idx + 1, static_cast<int>(list.size()));
+    if (start_idx >= list.size() || start_idx > end_idx) return Resp::array({});
 
-    std::vector<Resp> splice(end_idx - start_idx);
+    end_idx = std::min(end_idx + 1, static_cast<int>(list.size())); // end_idx is exclusive now
+
+    std::vector<Resp> splice;
     for (int i{start_idx}; i < end_idx; ++i) {
-        splice[i - start_idx] = Resp::bulkString(list[i]);
+        splice.emplace_back(Resp::bulkString(list[i]));
     }
     return Resp::array(splice);
     

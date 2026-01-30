@@ -79,7 +79,7 @@ const RespVec& Resp::asArray() const {
 
 int Resp::asInt() const {
     if (type != RespType::Integer)
-        throw std::runtime_error("Invalid RESP type, expected array");
+        throw std::runtime_error("Invalid RESP type, expected int");
     return std::get<int64_t>(value);
 }
 
