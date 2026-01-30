@@ -24,7 +24,8 @@ private:
     Resp handleRpush(const Resp& cmd) noexcept;
     Resp handleLrange(const Resp& cmd) noexcept;
 
-
+    static std::optional<int> parseIndex(const Resp& arg) noexcept;
+    static int normalize_index(int i, const int size) noexcept;
 };
 
 #endif 

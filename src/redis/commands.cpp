@@ -138,23 +138,21 @@ Resp CommandExecutor::handleLrange(const Resp& cmd) noexcept {
    
     const std::string& list_key = args[1].asString();
     
-    int start_idx;
-    int end_idx;
-    try {
-        start_idx = std::stoi(args[2].asString());
-        end_idx = std::stoi(args[3].asString());
-    } catch (...) {
-        return Resp::error("ERR unable to parse index arguments as ints");
-    }
+    auto start_idx_opt = parseIndex(args[2]);
+    auto end_idx_opt = parseIndex(args[3]);
+    
+    if (!start_idx_opt || !end_idx_opt) return Resp::error("ERR start and end indices must be integers");
+    int start_idx = *start_idx_opt;
+    int end_idx = *end_idx_opt;
 
     auto it = storage.find(list_key);
     if (it == storage.end()) return Resp::array({});
     if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
     
     auto& list = it->second.asArray(); // std::vector<std::string>
-    if (start_idx >= list.size() || start_idx > end_idx) return Resp::array({});
-
-    end_idx = std::min(end_idx + 1, static_cast<int>(list.size())); // end_idx is exclusive now
+    int size = list.size();
+    start_idx = normalize_index(start_idx, size);
+    end_idx = std::min(normalize_index(end_idx, size) + 1, size);
 
     std::vector<Resp> splice;
     for (int i{start_idx}; i < end_idx; ++i) {
@@ -163,3 +161,24 @@ Resp CommandExecutor::handleLrange(const Resp& cmd) noexcept {
     return Resp::array(splice);
     
 }
+
+std::optional<int> CommandExecutor::parseIndex(const Resp& arg) noexcept {
+    try {
+        int i = std::stoi(arg.asString());
+        return i;
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
+/**
+ * Converts a negative index to it's corresponding positive index.
+ * If the index is already positive, returns with no change.
+ * If the index is OOB for the size (such as -5 for an array of size 3), returns 0
+ * Will only ever return a non-negative value
+ */
+int CommandExecutor::normalize_index(int i, const int size) noexcept {
+    if (i < 0) i += size;
+    return std::clamp(i, 0, size);
+}
+
