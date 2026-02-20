@@ -17,7 +17,8 @@ enum class RespType {
     Integer,
     BulkString, // $<length>\r\n<data>\r\n
     Array,
-    Null
+    NullBS,
+    NullArray,
 };
 
 class Resp {
@@ -38,6 +39,7 @@ public:
     static Resp bulkString(std::string s);
     static Resp array(RespVec arr);
     static Resp nullBulkString();
+    static Resp nullArray();
     
     // Encode to RESP format
     std::string encode() const;

@@ -208,12 +208,16 @@ Resp CommandExecutor::handle_blpop(const Resp& cmd) noexcept {
 
     const RespVec& args = cmd.asArray();
     if (args.size() < 2) return Resp::error("ERR invalid number of arguments for BLPOP");
+
     const std::string& list_key = args[1].asString();
+    int timeout = 0; // in ms
+    if (args.size() > 2) {
+        timeout = std::stof(args[2].asString()) * 1000;
+        std::cout << "TIMEOUT: " << timeout << std::endl;
+    }
 
     auto it = storage.find(list_key);
-    
     if (it != storage.end() && !it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
-    
     if (it == storage.end() || it->second.asList().empty()) {
         std::shared_ptr<std::condition_variable> cv;
         {
@@ -223,15 +227,20 @@ Resp CommandExecutor::handle_blpop(const Resp& cmd) noexcept {
             }
             cv = key_cvs[list_key];
         }
-
-        if (!cv->wait_for(storage_lock, std::chrono::seconds(300),
-                [&]{ 
-                    it = storage.find(list_key);
-                    return it != storage.end() && !it->second.asList().empty();
-                })) 
-        { 
-            return Resp::error("ERR timeout");
-        }  
+        auto checkListForItems {
+            [&]{ 
+                it = storage.find(list_key);
+                return it != storage.end() && !it->second.asList().empty();
+            }
+        };
+        if (timeout == 0) {  // no timeout
+            cv->wait(storage_lock, checkListForItems);
+        } else {
+            if (!cv->wait_for(storage_lock, std::chrono::milliseconds(timeout), checkListForItems)) 
+            { 
+                return Resp::nullArray();
+            }  
+        }
     }
     auto& list = it->second.asList();
     const auto popped_str = std::move(list[0]);

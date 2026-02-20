@@ -35,32 +35,42 @@ Resp Resp::array(RespVec arr) {
 }
 Resp Resp::nullBulkString() {
     Resp r;
-    r.type = RespType::Null;
+    r.type = RespType::NullBS;
+    return r;
+}
+Resp Resp::nullArray() {
+    Resp r;
+    r.type = RespType::NullArray;
     return r;
 }
 
+
 std::string Resp::encode() const {
-    return std::visit([this](auto&& arg) -> std::string {
-        using T = std::decay_t<decltype(arg)>;
-        if constexpr (std::is_same_v<T, std::string>) {
-            if (type == RespType::SimpleString) return "+" + arg + "\r\n";
-            if (type == RespType::Error)        return "-" + arg + "\r\n";
-            if (type == RespType::BulkString)   return "$" + std::to_string(arg.length()) + "\r\n" + arg + "\r\n";
-            else return "$-1\r\n";
+   
+    switch(type) {
+        case RespType::SimpleString:
+            return "+" + this->asString() + "\r\n";
+        case RespType::Error:
+            return "-" + this->asString() + "\r\n";
+        case RespType::BulkString: {
+            const std::string& str = this->asString();
+            return "$" + std::to_string(str.length()) + "\r\n" + str + "\r\n";
         }
-        else if constexpr (std::is_same_v<T, int64_t>) {
-            return ":" + std::to_string(arg) + "\r\n";
-        }
-        else if constexpr (std::is_same_v<T, RespVec>) {
-            if (type == RespType::Null) return "*-1\r\n";
-            std::string res = "*" + std::to_string(arg.size()) + "\r\n";
-            for (auto& el : arg) {
+        case RespType::Integer:
+            return ":" + std::to_string(this->asInt()) + "\r\n";
+        case RespType::NullBS:
+            return "$-1\r\n";
+        case RespType::Array: {
+            auto& arr = this->asArray();
+            std::string res = "*" + std::to_string(arr.size()) + "\r\n";
+            for (auto& el : arr) {
                 res += el.encode();
             }
             return res;
         }
-        return "";
-    }, value);
+        case RespType::NullArray:
+            return "*-1\r\n";
+    }
 }
 
 // Return RESP error, simple string, and bulk string types as a string
