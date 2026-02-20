@@ -9,8 +9,11 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
+#include <thread>
+#include <unordered_set>
 
 #define MAX_BUFFER_SIZE 512
+const std::unordered_set<std::string> BLOCKING_COMMANDS = {"BLPOP", "BRPOP", "BRPOPLPUSH"};
 
 CommandExecutor executor{};
 
@@ -27,14 +30,31 @@ void handleClient(int epoll_fd, int client_fd) {
   std::cout << "Client connected, reading... \n";
 
   RespParser parser(buffer);
-  auto client_input = parser.parse();
+  auto client_input_opt = parser.parse();
   
   Resp response;
-  if (!client_input || !parser.bufferEmpty())
-    response = Resp::error("ERR invalid protocol");
-  else
-    response = executor.execute(*client_input);
 
+  // invalid commands
+  if (!client_input_opt || !parser.bufferEmpty() || client_input_opt->type != RespType::Array) {
+    response = Resp::error("ERR invalid protocol");
+    std::string res_str {response.encode()};
+    send(client_fd, res_str.c_str(), res_str.length(), 0);
+    return;
+  }
+  // handle valid commands
+  std::string cmd_str = client_input_opt->asArray()[0].asString();
+  CommandExecutor::make_upper(cmd_str);
+
+  if (BLOCKING_COMMANDS.count(cmd_str) > 0) {
+    std::thread([client_fd, client_input_opt]() {
+      Resp response = executor.execute(*client_input_opt);
+      std::string res_str {response.encode()};
+      send(client_fd, res_str.c_str(), res_str.length(), 0);
+    }).detach();
+    return;
+  }
+  // handle non blocking normally
+  response = executor.execute(*client_input_opt);
   std::string res_str {response.encode()};
   send(client_fd, res_str.c_str(), res_str.length(), 0);
 }

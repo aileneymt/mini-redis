@@ -1,8 +1,6 @@
 #include "commands.h"
 
 #include <stdexcept>
-#include <algorithm>
-
 #include <iostream>
 
 CommandExecutor::CommandExecutor() {
@@ -15,8 +13,7 @@ CommandExecutor::CommandExecutor() {
     commandMap["LRANGE"] = [this](const Resp& cmd) { return handle_lrange(cmd); };
     commandMap["LLEN"] = [this](const Resp& cmd) { return handle_llen(cmd); };
     commandMap["LPOP"] = [this](const Resp& cmd) { return handle_lpop(cmd); };
-
-
+    commandMap["BLPOP"] = [this](const Resp& cmd) { return handle_blpop(cmd); };
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -28,14 +25,12 @@ Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
         return Resp::error("ERR invalid RESP type, expected non-empty array");
     
     std::string cmd_str = bulk_str_arr[0].asString();
-
-    std::transform(cmd_str.begin(), cmd_str.end(), cmd_str.begin(),
-        [](unsigned char c){ return std::toupper(c); }); // Use a lambda for safety/clarity
+    make_upper(cmd_str);
 
     auto it = commandMap.find(cmd_str);
     if (it == commandMap.end())
         return Resp::error("ERR invalid command '" + cmd_str + "'");
-    
+
     return it->second(cmd);
 }
 
@@ -89,7 +84,7 @@ Resp CommandExecutor::handle_set(const Resp& cmd) noexcept {
     
     for (size_t i = 3; i < args.size(); i += 2) {
         std::string option = args[i].asString();
-        std::transform(option.begin(), option.end(), option.begin(), ::toupper);
+        make_upper(option);
         if (i + 1 >= args.size()) return Resp::error("ERR syntax error");
 
         int time = std::stoi(args[i + 1].asString());
@@ -114,22 +109,28 @@ Resp CommandExecutor::handle_push(const Resp& cmd, const bool rPush) noexcept {
     if (args.size() < 2) return Resp::error("ERR invalid number of arguments for RPUSH");
     const std::string& list_key = args[1].asString();
     
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
     auto it = storage.find(list_key);
-    if (it == storage.end()) {
-        StringList list_vals;
-        for (size_t i {2}; i < args.size(); ++i)
-            push_string(list_vals, args[i].asString(), rPush);
-        storage[list_key] = {list_vals};
-        return Resp::integer(list_vals.size());
-    }
-    else if (!it->second.isList()) {
+    if (it != storage.end() && !it->second.isList())
         return Resp::error("ERR " + list_key + " exists and is not a list");
+
+    if (it == storage.end()) {
+        storage[list_key] = StorageEntry{StringList()};
+        it = storage.find(list_key);
     }
     
     auto& list_vals = it->second.asList();
     for (size_t i {2}; i < args.size(); ++i)
         push_string(list_vals, args[i].asString(), rPush);
-    return Resp::integer(list_vals.size());
+    int size = list_vals.size();
+    storage_lock.unlock();
+    {
+        std::lock_guard<std::mutex> key_cvs_lock(key_cvs_mutex);
+        auto cv_it = key_cvs.find(list_key);
+        if (cv_it != key_cvs.end())
+            cv_it->second->notify_all();
+    }
+    return Resp::integer(size);
 }
 
 Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
@@ -200,6 +201,42 @@ Resp CommandExecutor::handle_lpop(const Resp& cmd) noexcept {
     }
     if (popped.size() == 1) return std::move(popped[0]);
     return Resp::array(popped);
+}
+
+Resp CommandExecutor::handle_blpop(const Resp& cmd) noexcept {
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
+
+    const RespVec& args = cmd.asArray();
+    if (args.size() < 2) return Resp::error("ERR invalid number of arguments for BLPOP");
+    const std::string& list_key = args[1].asString();
+
+    auto it = storage.find(list_key);
+    
+    if (it != storage.end() && !it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
+    
+    if (it == storage.end() || it->second.asList().empty()) {
+        std::shared_ptr<std::condition_variable> cv;
+        {
+            std::lock_guard<std::mutex> key_cvs_lock(key_cvs_mutex);
+            if (key_cvs.find(list_key) == key_cvs.end()) {
+                key_cvs[list_key] = std::make_shared<std::condition_variable>();
+            }
+            cv = key_cvs[list_key];
+        }
+
+        if (!cv->wait_for(storage_lock, std::chrono::seconds(300),
+                [&]{ 
+                    it = storage.find(list_key);
+                    return it != storage.end() && !it->second.asList().empty();
+                })) 
+        { 
+            return Resp::error("ERR timeout");
+        }  
+    }
+    auto& list = it->second.asList();
+    const auto popped_str = std::move(list[0]);
+    list.pop_front();
+    return Resp::array({Resp::bulkString(list_key), Resp::bulkString(std::move(popped_str))});
 }
 
 std::optional<int> CommandExecutor::parse_int(const Resp& arg) noexcept {
