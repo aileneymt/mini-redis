@@ -60,6 +60,7 @@ Resp CommandExecutor::handle_get(const Resp& cmd) noexcept {
     if (args.size() < 2)
         return Resp::error("ERR invalid number of arguments for 'get'");
 
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
     auto it = storage.find(args[1].asString());
     if (it == storage.end())
         return Resp::nullBulkString();
@@ -76,7 +77,7 @@ Resp CommandExecutor::handle_set(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 3)
         return Resp::error("ERR invalid number of arguments for 'get'");
-    
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
     const std::string& key = args[1].asString();
     const std::string& val = args[2].asString();
     
@@ -136,7 +137,7 @@ Resp CommandExecutor::handle_push(const Resp& cmd, const bool rPush) noexcept {
 Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() != 4) return Resp::error("ERR invalid number of arguments for LRANGE, expected 2 indices");
-   
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
     const std::string& list_key = args[1].asString();
     
     auto start_idx_opt = parse_int(args[2]);
@@ -166,6 +167,7 @@ Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
 Resp CommandExecutor::handle_llen(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() != 2) return Resp::error("ERR invalid number of arguments for LLEN");
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
     const std::string& list_key = args[1].asString();
     
     auto it = storage.find(list_key);
@@ -177,7 +179,7 @@ Resp CommandExecutor::handle_llen(const Resp& cmd) noexcept {
 Resp CommandExecutor::handle_lpop(const Resp& cmd) noexcept {
     const RespVec& args = cmd.asArray();
     if (args.size() < 2 || args.size() > 3) return Resp::error("ERR invalid number of arguments for LPOP");
-    
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
     const std::string& list_key = args[1].asString();
     int count = 1;
     if (args.size() == 3) {
