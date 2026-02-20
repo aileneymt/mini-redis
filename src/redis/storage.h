@@ -10,15 +10,36 @@
 
 using StringList = std::deque<std::string>;
 
+enum class StorageType {
+    String,
+    List,
+    // Future: Set, ZSet, Hash, Stream, etc.
+};
+
 struct StorageEntry {
     std::variant<std::string, StringList> value;
+    StorageType type = StorageType::String;
     std::optional<std::chrono::time_point<std::chrono::steady_clock>> expiry;
+    
 
+    /*
     bool isString() {
         return std::holds_alternative<std::string>(value);
     }
     bool isList() {
         return std::holds_alternative<StringList>(value);
+    }
+    */
+
+    std::string getTypeName() {
+        switch(type) {
+            case StorageType::String:
+                return "string";
+            case StorageType::List:
+                return "list";
+            default:
+                return "NOT IMPLEMENTED";
+        }
     }
 
     bool isExpired() {
@@ -26,14 +47,15 @@ struct StorageEntry {
     }
 
     std::string& asString() {
-        if (!isString()) throw std::runtime_error("value type is not std::string");
+        if (type != StorageType::String) throw std::runtime_error("value type is not std::string");
         return std::get<std::string>(value);
     }
 
     StringList& asList() {
-        if (!isList()) throw std::runtime_error("value type is not std::vector");
+        if (type != StorageType::List) throw std::runtime_error("value type is not StringList");
         return std::get<StringList>(value);
     }
+
 };
 
 #endif

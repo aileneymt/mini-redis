@@ -36,7 +36,8 @@ private:
     Resp handle_llen(const Resp& cmd) noexcept;
     Resp handle_lpop(const Resp& cmd) noexcept;
     Resp handle_blpop(const Resp& cmd) noexcept;
-        
+    Resp handle_type(const Resp& cmd) noexcept;
+
     static std::optional<int> parse_int(const Resp& arg) noexcept;
     static int normalize_index(int i, const int size) noexcept;
     static void push_string(StringList& list, std::string str, const bool rPush);

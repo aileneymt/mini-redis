@@ -14,6 +14,7 @@ CommandExecutor::CommandExecutor() {
     commandMap["LLEN"] = [this](const Resp& cmd) { return handle_llen(cmd); };
     commandMap["LPOP"] = [this](const Resp& cmd) { return handle_lpop(cmd); };
     commandMap["BLPOP"] = [this](const Resp& cmd) { return handle_blpop(cmd); };
+    commandMap["TYPE"] = [this](const Resp& cmd) { return handle_type(cmd); };
 }
 
 Resp CommandExecutor::execute(const Resp& cmd) const noexcept {
@@ -81,7 +82,7 @@ Resp CommandExecutor::handle_set(const Resp& cmd) noexcept {
     const std::string& key = args[1].asString();
     const std::string& val = args[2].asString();
     
-    StorageEntry entry {val};
+    StorageEntry entry {val, StorageType::String};
     
     for (size_t i = 3; i < args.size(); i += 2) {
         std::string option = args[i].asString();
@@ -112,11 +113,11 @@ Resp CommandExecutor::handle_push(const Resp& cmd, const bool rPush) noexcept {
     
     std::unique_lock<std::mutex> storage_lock(storage_mutex);
     auto it = storage.find(list_key);
-    if (it != storage.end() && !it->second.isList())
+    if (it != storage.end() && it->second.type != StorageType::List)
         return Resp::error("ERR " + list_key + " exists and is not a list");
 
     if (it == storage.end()) {
-        storage[list_key] = StorageEntry{StringList()};
+        storage[list_key] = StorageEntry{StringList(), StorageType::List};
         it = storage.find(list_key);
     }
     
@@ -149,7 +150,7 @@ Resp CommandExecutor::handle_lrange(const Resp& cmd) noexcept {
 
     auto it = storage.find(list_key);
     if (it == storage.end()) return Resp::array({});
-    if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
+    if (it->second.type != StorageType::List) return Resp::error("ERR " + list_key + " is not a list");
     
     auto& list = it->second.asList(); // std::vector<std::string>
     int size = list.size();
@@ -172,7 +173,7 @@ Resp CommandExecutor::handle_llen(const Resp& cmd) noexcept {
     
     auto it = storage.find(list_key);
     if (it == storage.end()) return Resp::integer(0);
-    if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
+    if (it->second.type != StorageType::List) return Resp::error("ERR " + list_key + " is not a list");
     return Resp::integer(it->second.asList().size());
 }
 
@@ -190,7 +191,7 @@ Resp CommandExecutor::handle_lpop(const Resp& cmd) noexcept {
 
     auto it = storage.find(list_key);
     if (it == storage.end()) return Resp::nullBulkString();
-    if (!it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
+    if (it->second.type != StorageType::List) return Resp::error("ERR " + list_key + " is not a list");
     
     auto& list = it->second.asList();
     if (list.empty()) return Resp::nullBulkString();
@@ -206,20 +207,18 @@ Resp CommandExecutor::handle_lpop(const Resp& cmd) noexcept {
 }
 
 Resp CommandExecutor::handle_blpop(const Resp& cmd) noexcept {
-    std::unique_lock<std::mutex> storage_lock(storage_mutex);
-
     const RespVec& args = cmd.asArray();
     if (args.size() < 2) return Resp::error("ERR invalid number of arguments for BLPOP");
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
 
     const std::string& list_key = args[1].asString();
     int timeout = 0; // in ms
     if (args.size() > 2) {
         timeout = std::stof(args[2].asString()) * 1000;
-        std::cout << "TIMEOUT: " << timeout << std::endl;
     }
 
     auto it = storage.find(list_key);
-    if (it != storage.end() && !it->second.isList()) return Resp::error("ERR " + list_key + " is not a list");
+    if (it != storage.end() && it->second.type != StorageType::List) return Resp::error("ERR " + list_key + " is not a list");
     if (it == storage.end() || it->second.asList().empty()) {
         std::shared_ptr<std::condition_variable> cv;
         {
@@ -248,6 +247,17 @@ Resp CommandExecutor::handle_blpop(const Resp& cmd) noexcept {
     const auto popped_str = std::move(list[0]);
     list.pop_front();
     return Resp::array({Resp::bulkString(list_key), Resp::bulkString(std::move(popped_str))});
+}
+
+Resp CommandExecutor::handle_type(const Resp& cmd) noexcept {
+    const RespVec& args = cmd.asArray();
+    if (args.size() != 2) return Resp::error("ERR invalid number of arguments for BLPOP");
+
+    std::unique_lock<std::mutex> storage_lock(storage_mutex);
+    const std::string& key = args[1].asString();
+    auto it = storage.find(key);
+    if (it == storage.end()) return Resp::simpleString("none");
+    return Resp::simpleString(it->second.getTypeName());
 }
 
 std::optional<int> CommandExecutor::parse_int(const Resp& arg) noexcept {
