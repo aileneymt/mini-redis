@@ -46,7 +46,6 @@ Resp Resp::nullArray() {
 
 
 std::string Resp::encode() const {
-   
     switch(type) {
         case RespType::SimpleString:
             return "+" + this->asString() + "\r\n";
@@ -68,7 +67,7 @@ std::string Resp::encode() const {
             }
             return res;
         }
-        case RespType::NullArray:
+        default:
             return "*-1\r\n";
     }
 }
